@@ -7,6 +7,30 @@ import (
 	"strings"
 )
 
+func (s *Server) ServeConn(conn net.Conn) (err error) {
+	defer conn.Close()
+
+	for {
+		packet := make([]byte, 512)
+		bytesRead, err := conn.Read(packet)
+		if err != nil {
+			return err
+		}
+		// Set the length of the packet to the number of read bytes.
+		packet = packet[:bytesRead]
+
+		frame, err := NewTCPFrame(packet)
+		if err != nil {
+			return err
+		}
+
+		request := &Request{conn, frame}
+
+		s.requestChan <- request
+	}
+	return nil
+}
+
 func (s *Server) accept(listen net.Listener) error {
 	for {
 		conn, err := listen.Accept()
@@ -18,32 +42,7 @@ func (s *Server) accept(listen net.Listener) error {
 			return err
 		}
 
-		go func(conn net.Conn) {
-			defer conn.Close()
-
-			for {
-				packet := make([]byte, 512)
-				bytesRead, err := conn.Read(packet)
-				if err != nil {
-					if err != io.EOF {
-						log.Printf("read error %v\n", err)
-					}
-					return
-				}
-				// Set the length of the packet to the number of read bytes.
-				packet = packet[:bytesRead]
-
-				frame, err := NewTCPFrame(packet)
-				if err != nil {
-					log.Printf("bad packet error %v\n", err)
-					return
-				}
-
-				request := &Request{conn, frame}
-
-				s.requestChan <- request
-			}
-		}(conn)
+		go s.ServeConn(conn)
 	}
 }
 
