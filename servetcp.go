@@ -1,7 +1,6 @@
 package mbserver
 
 import (
-	"io"
 	"log"
 	"net"
 	"strings"
